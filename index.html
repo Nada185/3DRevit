@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Building Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(135deg, hsl(287, 79%, 80%), #b5caee);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        canvas { display: block; }
+
+        h1, h2 {
+            text-align: center;
+            color: #ffffff;
+            text-shadow: 2px 2px 6px rgba(0, 0, 0, 0.118);
+            margin: 20px 0;
+            padding: 0;
+        }
+
+        h1 {
+            font-size: 3em;
+            letter-spacing: 1.5px;
+            background: linear-gradient(90deg, #6f195f, #6f195f);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        h2 {
+            font-size: 1.5em;
+            background: linear-gradient(90deg, #000000, #000000);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .camera-coordinates, .building-coordinates {
+            position: absolute;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.6);
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #fff;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .camera-coordinates {
+            top: 20px;
+        }
+
+        .building-coordinates {
+            bottom: 20px;
+        }
+
+        /* Adding medium borders around the <h3> element */
+        h3 {
+            border: 2px solid rgba(0, 0, 0, 0.6); /* Medium border with slight transparency */
+            padding: 10px;
+            text-align: center;
+            width: 70%;
+            margin: 20px auto;
+            background-color: rgba(255, 255, 255, 0.2); /* Light background for clarity */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Add shadow to emphasize the box */
+        }
+    </style>
+</head>
+<body>
+    <h1>3D Building Viewer</h1>
+    <h2>Displaying 3D models interactively from Revit</h2>
+    <h3>This platform allows interactive 3D viewing of building models, overcoming the limitations of static PDF files. Users can explore the 3D perspective of structures dynamically</h3>
+
+    <div class="camera-coordinates" id="cameraCoordinates">Camera: (0, 0, 0)</div>
+    <div class="building-coordinates" id="buildingCoordinates">Building: (0, 0, 0)</div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // إعداد المشهد
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff); // تم تغيير خلفية المشهد إلى اللون الأبيض
+
+        // إعداد الكاميرا
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.body.appendChild(renderer.domElement);
+
+        // إضافة إضاءة
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); // إضاءة محيطة بلون أبيض
+        scene.add(ambientLight);
+
+        const pointLight1 = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight1.position.set(10, 50, 50);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight2.position.set(-10, 50, -50);
+        scene.add(pointLight2);
+
+        const pointLight3 = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight3.position.set(10, 50, -50);
+        scene.add(pointLight3);
+
+        const pointLight4 = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight4.position.set(-10, 50, 50);
+        scene.add(pointLight4);
+
+        // مجموعة المبنى
+        const group = new THREE.Group();
+        scene.add(group);
+
+        // تحميل النموذج بصيغة glb
+        const loader = new THREE.GLTFLoader();
+        let building = null;
+        loader.load('model.glb', function (gltf) { // تم تغيير الامتداد إلى .glb
+            building = gltf.scene;
+            building.position.set(0, 0, 0);
+            group.add(building);
+        }, undefined, function (error) {
+            console.error('Error loading model:', error);
+        });
+
+        // التحكم بالكاميرا
+        camera.position.set(0, -100, 60); // تم زيادة قيمة z لإبعاد الكاميرا
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.2;
+        controls.screenSpacePanning = false;
+
+        // إضافة لافتات الاتجاهات
+        function addDirectionLabel(text, x, y, z) {
+            const spriteMaterial = new THREE.SpriteMaterial({ 
+                map: new THREE.CanvasTexture(generateTextSprite(text)),
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(spriteMaterial);
+            sprite.position.set(x, y, z);
+            sprite.scale.set(15, 7, 1);
+            group.add(sprite); // إضافة النص إلى المجموعة
+        }
+
+        // إنشاء صورة نصية للافتات الاتجاهات
+        function generateTextSprite(message) {
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            context.font = 'Bold 80px Arial';
+            context.fillStyle = 'rgba(0, 0, 0, 1.0)'; // تغيير النص إلى الأسود
+            context.strokeStyle = 'rgba(255, 255, 255, 1.0)'; // حدود بيضاء للنص
+            context.lineWidth = 5;
+            context.strokeText(message, 0, 80);
+            context.fillText(message, 0, 80);
+            return canvas;
+        }
+
+        // إضافة لافتات الاتجاهات الأربعة
+        addDirectionLabel('North', 0, 60, 0);  // شمال
+        addDirectionLabel('South', 0, -60, 0); // جنوب
+        addDirectionLabel('West', 70, 0, 0);   // غرب
+        addDirectionLabel('East', -70, 0, 0);  // شرق
+
+        // تحريك المجموعة بالكامل (تدوير حول المحور Z)
+        function rotateGroup() {
+            group.rotation.z += 0.005; // تقليل السرعة لجعل التدوير أبطأ
+        }
+
+        // تحديث المشهد
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+            rotateGroup(); // تدوير المجموعة باستمرار
+
+            // تحديث إحداثيات الكاميرا
+            document.getElementById('cameraCoordinates').innerText = `Camera: (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`;
+            
+            // تحديث إحداثيات المبنى
+            if (building) {
+                document.getElementById('buildingCoordinates').innerText = `Building: (${building.position.x.toFixed(2)}, ${building.position.y.toFixed(2)}, ${building.position.z.toFixed(2)})`;
+            }
+        }
+
+        animate(); // بدء التحريك
+    </script>
+</body>
+</html>
